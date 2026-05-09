@@ -13,7 +13,7 @@ export default async function handler(req, res) {
 
   const prompt = (useSearch) => ({
     model: 'claude-sonnet-4-5-20250929',
-    max_tokens: 3000,
+    max_tokens: 1000,
     ...(useSearch ? { tools: [{ type: 'web_search_20250305', name: 'web_search' }] } : {}),
     system: `You are DealRadar's price comparison engine. Find prices for the requested product from as many different stores as possible — big retailers, small shops, specialty stores, discount sites, marketplace sellers, outlet stores. Return ONLY raw JSON (no markdown, no backticks, no explanation):
 {
