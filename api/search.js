@@ -5,14 +5,14 @@ export default async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
-  const { query } = req.body;
-  if (!query) return res.status(400).json({ error: 'Query is required' });
+  const { query } = req.body || {};
+  if (!query) return res.status(400).json({ error: 'Query required' });
 
   const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) return res.status(500).json({ error: 'API key not configured' });
+  if (!apiKey) return res.status(500).json({ error: 'No API key configured' });
 
   try {
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
+    const r = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -20,30 +20,29 @@ export default async function handler(req, res) {
         'anthropic-version': '2023-06-01'
       },
       body: JSON.stringify({
-        model: 'claude-opus-4-20250514',
-        max_tokens: 1500,
+        model: 'claude-3-5-haiku-20241022',
+        max_tokens: 2000,
         messages: [{
           role: 'user',
-          content: `You are a price comparison engine. Give me current realistic prices for "${query}" from 6-8 different online stores. Respond ONLY with this JSON, no markdown:
-{"product":"name","summary":"2-3 sentence buying advice","tip":"one tip","results":[{"store":"name","emoji":"emoji","price":99.99,"was":129.99,"shipping":"Free shipping","rating":"4.5","reviews":"1,234","stock":"In stock","url":"https://store.com","note":"key detail"}]}`
+          content: `Find current prices for: "${query}"\n\nReturn ONLY a JSON object, no markdown, no explanation:\n{"product":"name","summary":"2 sentence buying advice","tip":"money saving tip","results":[{"store":"store name","emoji":"emoji","price":199.99,"was":249.99,"shipping":"Free shipping","rating":"4.7","reviews":"12,453","stock":"In stock","url":"https://store.com","note":"key detail"}]}\n\nInclude 6-8 results from Amazon, Walmart, Best Buy, Target, eBay, Costco and others. Sort cheapest first. Use realistic prices.`
         }]
       })
     });
 
-    if (!response.ok) {
-      const err = await response.text();
-      return res.status(500).json({ error: 'API error', detail: err });
+    if (!r.ok) {
+      const errText = await r.text();
+      return res.status(500).json({ error: 'API error', status: r.status, detail: errText });
     }
 
-    const data = await response.json();
-    const text = data.content.filter(b => b.type === 'text').map(b => b.text || '').join('');
-    const clean = text.replace(/```json|```/g, '').trim();
-    const start = clean.indexOf('{');
-    const end = clean.lastIndexOf('}');
-    const parsed = JSON.parse(clean.slice(start, end + 1));
+    const data = await r.json();
+    const txt = (data.content || []).filter(b => b.type === 'text').map(b => b.text || '').join('');
+    const start = txt.indexOf('{');
+    const end = txt.lastIndexOf('}');
+    if (start === -1 || end === -1) return res.status(500).json({ error: 'No JSON in response', raw: txt });
+    const parsed = JSON.parse(txt.slice(start, end + 1));
     return res.status(200).json(parsed);
 
   } catch (err) {
-    return res.status(500).json({ error: 'Server error', detail: err.message });
+    return res.status(500).json({ error: err.message });
   }
 }
