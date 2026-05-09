@@ -21,11 +21,38 @@ export default async function handler(req, res) {
       },
       body: JSON.stringify({
         model: 'claude-sonnet-4-5-20250929',
-        max_tokens: 1500,
-        messages: [{
-          role: 'user',
-          content: `Find current prices for: "${query}". Return ONLY raw JSON no markdown:\n{"product":"name","summary":"2 sentence advice","tip":"tip","results":[{"store":"Amazon","emoji":"📦","price":199.99,"was":249.99,"shipping":"Free shipping","rating":"4.7","reviews":"12k","stock":"In stock","url":"https://amazon.com","note":"detail"},{"store":"Walmart","emoji":"🛒","price":189.99,"was":null,"shipping":"Free shipping","rating":"4.5","reviews":"8k","stock":"In stock","url":"https://walmart.com","note":"detail"},{"store":"Best Buy","emoji":"🔵","price":209.99,"was":249.99,"shipping":"Free shipping","rating":"4.6","reviews":"5k","stock":"In stock","url":"https://bestbuy.com","note":"detail"},{"store":"Target","emoji":"🎯","price":219.99,"was":null,"shipping":"Free shipping","rating":"4.4","reviews":"3k","stock":"In stock","url":"https://target.com","note":"detail"},{"store":"eBay","emoji":"🏷️","price":174.99,"was":249.99,"shipping":"Free shipping","rating":"4.3","reviews":"2k","stock":"In stock","url":"https://ebay.com","note":"detail"},{"store":"Costco","emoji":"🏪","price":179.99,"was":229.99,"shipping":"Free shipping","rating":"4.8","reviews":"1k","stock":"In stock","url":"https://costco.com","note":"detail"}]}`
-        }]
+        max_tokens: 4000,
+        tools: [{ type: 'web_search_20250305', name: 'web_search' }],
+        system: `You are DealRadar's price comparison engine. When given a product search query:
+
+1. Search the web multiple times to find REAL current listings for the product from as many different stores as possible — not just big retailers but also specialty shops, discount sites, marketplace sellers, outlet stores, refurbishers, and any other trustworthy seller.
+
+2. For each result find the REAL direct product page URL, the REAL current price, and if possible the product image URL.
+
+3. Return ONLY a raw JSON object (no markdown, no backticks):
+{
+  "product": "exact product name",
+  "summary": "2-3 sentences: which store has the best deal and why, key differences",
+  "tip": "one specific money-saving tip for this product",
+  "results": [
+    {
+      "store": "exact store name",
+      "emoji": "relevant emoji",
+      "price": 199.99,
+      "was": 249.99,
+      "shipping": "Free shipping",
+      "rating": "4.7",
+      "reviews": "12,453",
+      "stock": "In stock",
+      "url": "REAL direct product page URL - must go to exact product not homepage",
+      "image": "direct image URL of the product if found, otherwise null",
+      "note": "key selling point"
+    }
+  ]
+}
+
+CRITICAL: Every URL must be a REAL working link directly to the product page. Never make up URLs. If you cannot find the real URL for a store, do not include that store. Include 6-10 results from diverse real sources. Sort by price ascending.`,
+        messages: [{ role: 'user', content: `Search for real current prices and listings for: "${query}"` }]
       })
     });
 
