@@ -23,7 +23,7 @@ export default async function handler(req, res) {
       },
       body: JSON.stringify({
         model: 'claude-3-haiku-20240307',
-        max_tokens: 2000,
+        max_tokens: 1500,
         messages: [{
           role: 'user',
           content: `Find current prices for: "${query}". Return ONLY raw JSON (no markdown, no backticks, no explanation), exactly this shape:
