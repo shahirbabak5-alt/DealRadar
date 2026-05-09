@@ -11,7 +11,36 @@ export default async function handler(req, res) {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) return res.status(500).json({ error: 'No API key' });
 
-  try {
+  const prompt = (useSearch) => ({
+    model: 'claude-sonnet-4-5-20250929',
+    max_tokens: 3000,
+    ...(useSearch ? { tools: [{ type: 'web_search_20250305', name: 'web_search' }] } : {}),
+    system: `You are DealRadar's price comparison engine. Find prices for the requested product from as many different stores as possible — big retailers, small shops, specialty stores, discount sites, marketplace sellers, outlet stores. Return ONLY raw JSON (no markdown, no backticks, no explanation):
+{
+  "product": "product name",
+  "summary": "2-3 sentences on best deal and why",
+  "tip": "one money saving tip",
+  "results": [
+    {
+      "store": "store name",
+      "emoji": "emoji",
+      "price": 199.99,
+      "was": 249.99,
+      "shipping": "Free shipping",
+      "rating": "4.7",
+      "reviews": "12,453",
+      "stock": "In stock",
+      "url": "${useSearch ? 'REAL direct product page URL' : 'https://www.storename.com'}",
+      "image": "${useSearch ? 'real product image URL or null' : 'null'}",
+      "note": "key detail"
+    }
+  ]
+}
+Include 6-8 results sorted cheapest first. ${useSearch ? 'Only include stores where you found the REAL product URL.' : 'Use realistic current market prices.'}`,
+    messages: [{ role: 'user', content: `Find prices for: "${query}"` }]
+  });
+
+  const callAPI = async (useSearch) => {
     const r = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
@@ -19,56 +48,33 @@ export default async function handler(req, res) {
         'x-api-key': apiKey,
         'anthropic-version': '2023-06-01'
       },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-5-20250929',
-        max_tokens: 4000,
-        tools: [{ type: 'web_search_20250305', name: 'web_search' }],
-        system: `You are DealRadar's price comparison engine. When given a product search query:
-
-1. Search the web multiple times to find REAL current listings for the product from as many different stores as possible — not just big retailers but also specialty shops, discount sites, marketplace sellers, outlet stores, refurbishers, and any other trustworthy seller.
-
-2. For each result find the REAL direct product page URL, the REAL current price, and if possible the product image URL.
-
-3. Return ONLY a raw JSON object (no markdown, no backticks):
-{
-  "product": "exact product name",
-  "summary": "2-3 sentences: which store has the best deal and why, key differences",
-  "tip": "one specific money-saving tip for this product",
-  "results": [
-    {
-      "store": "exact store name",
-      "emoji": "relevant emoji",
-      "price": 199.99,
-      "was": 249.99,
-      "shipping": "Free shipping",
-      "rating": "4.7",
-      "reviews": "12,453",
-      "stock": "In stock",
-      "url": "REAL direct product page URL - must go to exact product not homepage",
-      "image": "direct image URL of the product if found, otherwise null",
-      "note": "key selling point"
-    }
-  ]
-}
-
-CRITICAL: Every URL must be a REAL working link directly to the product page. Never make up URLs. If you cannot find the real URL for a store, do not include that store. Include 6-10 results from diverse real sources. Sort by price ascending.`,
-        messages: [{ role: 'user', content: `Search for real current prices and listings for: "${query}"` }]
-      })
+      body: JSON.stringify(prompt(useSearch))
     });
-
     if (!r.ok) {
       const e = await r.text();
-      return res.status(500).json({ error: 'API error', status: r.status, detail: e });
+      throw new Error(`API ${r.status}: ${e}`);
     }
-
     const d = await r.json();
     const txt = (d.content || []).filter(b => b.type === 'text').map(b => b.text || '').join('');
     const s = txt.indexOf('{');
     const e = txt.lastIndexOf('}');
-    if (s === -1 || e === -1) return res.status(500).json({ error: 'No JSON', raw: txt });
-    return res.status(200).json(JSON.parse(txt.slice(s, e + 1)));
+    if (s === -1 || e === -1) throw new Error('No JSON in response');
+    return JSON.parse(txt.slice(s, e + 1));
+  };
 
+  // Try with web search first (25s timeout), fall back to AI-only if it fails
+  try {
+    const result = await Promise.race([
+      callAPI(true),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 25000))
+    ]);
+    return res.status(200).json({ ...result, source: 'live' });
   } catch (err) {
-    return res.status(500).json({ error: err.message });
+    try {
+      const result = await callAPI(false);
+      return res.status(200).json({ ...result, source: 'ai' });
+    } catch (err2) {
+      return res.status(500).json({ error: err2.message });
+    }
   }
 }
