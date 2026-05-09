@@ -1,0 +1,9 @@
+{
+  "name": "dealradar",
+  "version": "1.0.0",
+  "description": "AI-powered price comparison across the entire internet",
+  "private": true,
+  "engines": {
+    "node": ">=18"
+  }
+}
