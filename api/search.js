@@ -26,7 +26,7 @@ export default async function handler(req, res) {
         'anthropic-version': '2023-06-01'
       },
       body: JSON.stringify({
-        model: 'claude-haiku-4-5-20251001',
+        model: 'claude-sonnet-4-5-20250929',
         max_tokens: 2000,
         tools: [{ type: 'web_search_20250305', name: 'web_search' }],
         system: `You are DealRadar's AI price comparison engine. Search the web to find REAL current prices for the requested product from as many different online stores as possible. After searching, respond ONLY with a valid JSON object, no markdown, no explanation:
